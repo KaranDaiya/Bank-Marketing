@@ -1,0 +1,94 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r loading dataset and settling data in proper format}
+bank <- read.csv("/Users/karan/Downloads/bank-marketing/bank-additional-full.csv", sep = ";", stringsAsFactors = T)
+View(bank)
+```
+```{r reviewing structure}
+str(bank)
+```
+```{r checking for missing values}
+library(DataExplorer)
+plot_missing(bank)
+```
+```{r}
+summary(bank)
+```
+```{r setting data in random order}
+set.seed(150)
+sample.bank <-bank[sample(nrow(bank),41188), ]
+```
+```{r Partitioning data into 80% of training and remaining 20% for testing}
+library(C50)
+library(caret)
+library(lattice)
+library(ggplot2)
+partitioned.sample.bank <- createDataPartition(
+  sample.bank$y,
+  times = 1,
+  p = 0.8,
+  list = F
+)
+
+#train vs test
+sample.train = sample.bank[partitioned.sample.bank, ]
+sample.test = sample.bank[-partitioned.sample.bank, ]
+```
+```{r making sure that data is in right proportion}
+prop.table(table(sample.train$y))
+prop.table(table(sample.test$y))
+```
+```{r number of columns}
+ncol(sample.train)
+```
+```{r Decision tree of training dataset with 93.5% accuracy}
+dt.sample.train.model <- C5.0(sample.train[-21], as.factor(sample.train$y))
+
+dt.sample.train.model
+summary(dt.sample.train.model)
+```
+```{r Predicting model}
+dt.sample.train.predict <- predict(dt.sample.train.model, sample.test)
+
+```
+```{r Confusion Matrix of predicted training data and test data}
+library(gmodels)
+confusionMatrix(as.factor(sample.test$y), dt.sample.train.predict)
+CrossTable(sample.test$y, dt.sample.train.predict,
+prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE, dnn = c('actual default', 'predicted default'))
+
+```
+```{r Performance Improvement by Boosting: Decision Tree of training data with 10 trials and 2.8% boost}
+dt.sample.train.boost <- C5.0(sample.train[-21], as.factor(sample.train$y), trials = 10)
+dt.sample.train.boost
+summary(dt.sample.train.boost)
+```
+
+```{r predicting boosted model and comparing with test data resulting in 91.51% accuracy}
+dt.sample.train.predict.boosted <- predict(dt.sample.train.boost, sample.test)
+
+
+#lets check a crosstable comparison
+confusionMatrix(as.factor(sample.test$y), dt.sample.train.predict.boosted)
+CrossTable(sample.test$y, dt.sample.train.predict.boosted,
+prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE, dnn = c('actual default', 'predicted default'))
+```
+
+```{r Reducing False Positives which are more important than False Negatives}
+error_cost <- matrix(c(0, 4, 2, 0), nrow = 2)
+error_cost
+dt.sample.train.boost <- C5.0(sample.train[-21], as.factor(sample.train$y), costs = error_cost)
+bank.pred <- predict(dt.sample.train.boost, sample.test)
+confusionMatrix(as.factor(sample.test$y), bank.pred)
+CrossTable(sample.test$y, bank.pred,
+prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE, dnn = c('actual default', 'predicted default'))
+
+```
+
